@@ -14,25 +14,47 @@ import importlib
 import myfunction
 # from myfunction import data_preparation,forecast_accuracy,sarimax,croston,etssp_best,prophet
 importlib.reload(myfunction)
-from myfunction import data_preparation,forecast_accuracy,sarimax,crostn,etssp_best,prophet,combine_forecasts,best_model_rmse_mape,nbeat
+from myfunction import data_preparation,forecast_accuracy,sarimax,crostn,etssp_best,combine_forecasts,best_model_rmse_mape,nbeat,xgboost
 
 ##parameters
 h=12 #number of dat apoints to predict
 n_split=5
 #input data
-data = pd.read_csv('sample data.csv')
+data = pd.read_csv('data.csv')
 print('data read into df')
 
 def overall_function(data,n_split,h,value_name):
     ## preprocessing data
     df,df_train,df_test=data_preparation(data,n_split)
-    forecast_sarimax,acc_sarimax=sarimax(df_train,n_split,df,h,df_test)
-    forecast_croston,acc_croston=crostn(df_train,n_split,df,h,df_test)
-    forecast_ets,acc_ets=etssp_best(df_train,n_split,df,h,df_test)
-    forecast_prophet,acc_prophet=prophet(df_train,n_split,df,h,df_test)
-    forecast_nbeats,acc_nbeats=nbeat(df_train,n_split,df,h,df_test)
-    forecasts=combine_forecasts(forecast_sarimax,forecast_prophet,forecast_croston,forecast_ets,forecast_nbeats,value_name)
-    best_models=best_model_rmse_mape(acc_sarimax,acc_croston,acc_ets,acc_prophet,acc_nbeats)
+    try:
+        forecast_sarimax,acc_sarimax=sarimax(df_train,n_split,df,h,df_test)
+    except:
+        print('arima not done!')
+        forecast_sarimax,acc_sarimax=None,None
+    try:
+        forecast_croston,acc_croston=crostn(df_train,n_split,df,h,df_test)
+    except:
+        print('croston not done!')
+        forecast_croston,acc_croston=None,None
+    try:    
+        forecast_ets,acc_ets=etssp_best(df_train,n_split,df,h,df_test)
+    except:
+        print('ets statespace not done!')
+        forecast_ets,acc_ets=None,None
+#     forecast_prophet,acc_prophet=prophet(df_train,n_split,df,h,df_test)
+    try:
+        forecast_nbeats,acc_nbeats=nbeat(df_train,n_split,df,h,df_test)
+    except:
+        print('nbeats error!')
+        forecast_nbeats,acc_nbeats=None,None
+    try:
+        forecast_xgboost,acc_xgboost=xgboost(df_train,n_split,df,h,df_test)
+    except:
+        print('xgboost error!')
+        forecast_xgboost,acc_xgboost=None,None
+
+    forecasts=combine_forecasts(forecast_sarimax,forecast_croston,forecast_ets,forecast_nbeats,forecast_xgboost,value_name,df,h)
+    best_models=best_model_rmse_mape(acc_sarimax,acc_croston,acc_ets,acc_nbeats,acc_xgboost)
     return(forecasts,best_models)
 
 start = time.time()
@@ -53,7 +75,7 @@ print(iter_time)
 ## export forecast fter concatinating results
 forecast_op=pd.concat(forecasts_final,axis=1)
 forecast_op.rename(columns={'index':'Date','variable':'Model'},inplace=True)
-forecast_op=forecast_op.loc[:,~forecast_op.columns.duplicated()]
+# forecast_op=forecast_op.loc[:,~forecast_op.columns.duplicated()]
 ## replace negative forecasts by zero
 forecast_op.to_csv("forecast_test.csv")
 
